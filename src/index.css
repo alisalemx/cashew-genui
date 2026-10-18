@@ -1,0 +1,293 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Geist Variable', sans-serif;
+    --font-mono: 'Geist Mono Variable', ui-monospace, monospace;
+    --color-highlight: var(--highlight);
+    --color-highlight-foreground: var(--highlight-foreground);
+    --color-good: var(--good);
+    --color-bad: var(--bad);
+    --color-claude: var(--claude);
+    --color-claude-ink: var(--claude-ink);
+    --color-jev-ink: var(--jev-ink);
+    --color-chart-grid: var(--chart-grid);
+    --color-divider: var(--divider);
+    --color-selected: var(--selected);
+    --shadow-raised: var(--elevation-raised);
+    --shadow-floating: var(--elevation-floating);
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Cashew follows the system's light or dark setting. Warm paper, near-black
+   ink, one bold cobalt, and a blush highlight that is used for exactly one flat
+   block per screen. Cards and the Ask Cashew panel are raised with a soft
+   shadow, and anything that floats casts a deeper one. No borders: the one
+   exception is a light divider between rows in lists with three or more
+   columns. Dark mode flips these tokens; components never need `dark:`. */
+:root {
+    color-scheme: light dark;
+    --background: oklch(0.962 0.008 85);
+    --foreground: oklch(0.22 0.012 80);
+    --card: oklch(0.998 0.002 85);
+    --card-foreground: oklch(0.22 0.012 80);
+    --popover: oklch(0.998 0.002 85);
+    --popover-foreground: oklch(0.22 0.012 80);
+    --primary: oklch(0.48 0.19 262);
+    --primary-foreground: oklch(0.985 0.004 85);
+    --secondary: oklch(0.945 0.008 85);
+    --secondary-foreground: oklch(0.22 0.012 80);
+    --muted: oklch(0.945 0.008 85);
+    --muted-foreground: oklch(0.5 0.012 80);
+    --accent: oklch(0.935 0.01 85);
+    --accent-foreground: oklch(0.22 0.012 80);
+    --destructive: oklch(0.55 0.19 30);
+    --border: oklch(0.9 0.01 85);
+    --input: oklch(0.88 0.01 85);
+    /* Focus rings stay neutral, so they never read as a brand accent. */
+    --ring: oklch(0.55 0.012 80);
+    --highlight: oklch(0.85 0.11 355);
+    --highlight-foreground: oklch(0.3 0.09 355);
+    --good: oklch(0.48 0.13 152);
+    --bad: oklch(0.52 0.17 35);
+    /* Claude's clay, for crediting its work in Ask Cashew. */
+    --claude: oklch(0.54 0.11 50);
+    /* Darker text for the small Jev and Claude chips, so 11px labels pass
+       contrast on their tinted fills. */
+    --claude-ink: oklch(0.46 0.1 50);
+    --jev-ink: oklch(0.44 0.18 262);
+    --chart-1: oklch(0.52 0.19 262);
+    /* The months before this one, behind the current month's bar. */
+    --chart-1-soft: oklch(0.87 0.06 262);
+    --chart-2: oklch(0.68 0.15 355);
+    --chart-3: oklch(0.72 0.15 60);
+    --chart-4: oklch(0.5 0.012 80);
+    --chart-5: oklch(0.8 0.01 85);
+    --chart-grid: oklch(0.93 0.008 85);
+    --divider: oklch(0.93 0.008 85);
+    /* The chosen segment of a control, like the open tab, raised above its track. */
+    --selected: oklch(0.998 0.002 85);
+    /* The mark keeps its colours in both themes, like the favicon. */
+    --mark-tile: oklch(0.85 0.11 355);
+    --mark-ink: oklch(0.48 0.19 262);
+    /* Raised surfaces, like cards, sit just off the page: a faint edge, a tight
+       contact shadow, and a soft ambient one. Floating ones, like dialogs, the
+       phone sheet, and tooltips, cast a deeper shadow. */
+    --elevation-raised:
+        0 0 0 1px oklch(0 0 0 / 0.04),
+        0 1px 3px oklch(0 0 0 / 0.05),
+        0 4px 10px -4px oklch(0 0 0 / 0.05);
+    --elevation-floating:
+        0 0 0 1px oklch(0 0 0 / 0.05),
+        0 2px 6px oklch(0 0 0 / 0.06),
+        0 12px 32px -8px oklch(0 0 0 / 0.16);
+    /* How thick a line is: one device pixel on sharp screens, so dividers and
+       the "How this answer was made" outline stay fine instead of doubling. */
+    --hairline: 1px;
+    @media (min-resolution: 2dppx), (-webkit-min-device-pixel-ratio: 2) {
+        --hairline: 0.5px;
+    }
+    --radius: 0.75rem;
+    --sidebar: oklch(0.985 0.004 85);
+    --sidebar-foreground: oklch(0.22 0.012 80);
+    --sidebar-primary: oklch(0.48 0.19 262);
+    --sidebar-primary-foreground: oklch(0.985 0.004 85);
+    --sidebar-accent: oklch(0.945 0.008 85);
+    --sidebar-accent-foreground: oklch(0.22 0.012 80);
+    --sidebar-border: oklch(0.9 0.01 85);
+    --sidebar-ring: oklch(0.55 0.012 80);
+}
+
+/* Dark mode is the same roles with lightness flipped: the page is darkest,
+   cards and floating surfaces step up from it, and cobalt and blush trade
+   places in lightness so text on them still passes contrast. Shadows can't be
+   seen on dark, so each one becomes a faint light edge. */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background: oklch(0.165 0.006 80);
+        --foreground: oklch(0.955 0.006 85);
+        --card: oklch(0.215 0.006 80);
+        --card-foreground: oklch(0.955 0.006 85);
+        --popover: oklch(0.235 0.006 80);
+        --popover-foreground: oklch(0.955 0.006 85);
+        --primary: oklch(0.8 0.095 262);
+        --primary-foreground: oklch(0.17 0.035 262);
+        --secondary: oklch(0.265 0.006 80);
+        --secondary-foreground: oklch(0.955 0.006 85);
+        --muted: oklch(0.265 0.006 80);
+        --muted-foreground: oklch(0.78 0.01 80);
+        --accent: oklch(0.285 0.006 80);
+        --accent-foreground: oklch(0.955 0.006 85);
+        --destructive: oklch(0.7 0.15 30);
+        --border: oklch(0.37 0.008 80);
+        --input: oklch(0.32 0.008 80);
+        --ring: oklch(0.62 0.01 80);
+        --highlight: oklch(0.46 0.16 355);
+        --highlight-foreground: oklch(0.95 0.025 355);
+        --good: oklch(0.78 0.15 152);
+        --bad: oklch(0.78 0.12 35);
+        --claude: oklch(0.7 0.11 50);
+        --claude-ink: oklch(0.82 0.08 50);
+        --jev-ink: oklch(0.84 0.07 262);
+        --chart-1: oklch(0.74 0.13 262);
+        --chart-1-soft: oklch(0.42 0.08 262);
+        --chart-2: oklch(0.72 0.13 355);
+        --chart-3: oklch(0.78 0.13 65);
+        --chart-4: oklch(0.62 0.01 80);
+        --chart-5: oklch(0.42 0.008 80);
+        --chart-grid: oklch(0.3 0.006 80);
+        --divider: oklch(0.31 0.006 80);
+        --selected: oklch(0.34 0.006 80);
+        --elevation-raised: 0 0 0 1px oklch(1 0 0 / 0.07);
+        --elevation-floating: 0 0 0 1px oklch(1 0 0 / 0.12);
+        --sidebar: oklch(0.215 0.006 80);
+        --sidebar-foreground: oklch(0.955 0.006 85);
+        --sidebar-primary: oklch(0.8 0.095 262);
+        --sidebar-primary-foreground: oklch(0.17 0.035 262);
+        --sidebar-accent: oklch(0.265 0.006 80);
+        --sidebar-accent-foreground: oklch(0.955 0.006 85);
+        --sidebar-border: oklch(0.37 0.008 80);
+        --sidebar-ring: oklch(0.62 0.01 80);
+    }
+}
+
+/* Frosted glass for anything that floats over content on hover, like chart
+   tooltips. It blurs what's behind; pair it with `shadow-floating`. */
+@utility frosted {
+    background-color: color-mix(in oklch, var(--secondary) 55%, transparent);
+    -webkit-backdrop-filter: blur(12px) saturate(1.6);
+    backdrop-filter: blur(12px) saturate(1.6);
+    @supports not (backdrop-filter: blur(0)) {
+        background-color: var(--secondary);
+    }
+}
+
+/* Grows a small control's target to at least 40px (44px on touch) without
+   changing how it looks. The control needs a position, like `relative`. */
+@utility hit-area {
+    --hit: 40px;
+    @media (pointer: coarse) {
+        --hit: 44px;
+    }
+    &::before {
+        content: "";
+        position: absolute;
+        inset-block: min(0px, calc((100% - var(--hit)) / 2));
+        inset-inline: min(0px, calc((100% - var(--hit)) / 2));
+    }
+}
+
+/* When Jev rearranges the dashboard, its cards glide to their new places
+   (see `moveCards` in App.tsx). Only the cards and the "Rearranged by Jev"
+   line above them take part, so the rest of the page stays live. They're
+   moving on screen, so the curve eases in and out. With reduced motion they
+   crossfade in place instead of travelling. */
+:root {
+    view-transition-name: none;
+}
+::view-transition-group(*) {
+    animation-duration: 400ms;
+    animation-timing-function: cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+::view-transition-group(*.lead) {
+    z-index: 1;
+}
+/* A card Jev adds has no old place, so it rises in where it lands, once its
+   neighbours have mostly made room. A card Jev drops fades out quickly. */
+::view-transition-new(*):only-child {
+    animation: card-enter 200ms cubic-bezier(0.23, 1, 0.32, 1) 200ms both;
+}
+::view-transition-old(*):only-child {
+    animation: card-leave 150ms ease-out both;
+}
+@keyframes card-enter {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+}
+@keyframes card-leave {
+    to {
+        opacity: 0;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(*) {
+        animation: none;
+    }
+    ::view-transition-new(*):only-child {
+        animation: card-fade 200ms ease both;
+    }
+    ::view-transition-old(*):only-child {
+        animation: card-leave 150ms ease both;
+    }
+}
+@keyframes card-fade {
+    from {
+        opacity: 0;
+    }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+    }
+  html {
+    @apply font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    }
+  ::selection {
+    background: var(--highlight);
+    color: var(--highlight-foreground);
+    }
+}
