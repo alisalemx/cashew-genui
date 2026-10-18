@@ -35,3 +35,7 @@ ANTHROPIC_API_KEY=your-key
 ```
 
 Without the key, Jev's cards still work, and questions that need Claude get a note that Claude isn't connected. Adding `JEV_OFFLINE=1` to the same file swaps Jev for a simple keyword matcher.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
