@@ -270,6 +270,8 @@ Ali Salem.
   happens, stop them all, delete `node_modules/.vite`, and start one again.
 - `npx tsx scripts/try-compose.ts "prompt"` runs one Jev composition from the
   command line.
-- Production secret: `npx wrangler secret put ANTHROPIC_API_KEY`.
+- Production secret: `npx wrangler secret put ANTHROPIC_API_KEY`. The live
+  site never reads `.dev.vars`, so a new Anthropic key goes in both places,
+  or Claude's answers fail in production with "invalid x-api-key".
 - The Worker is `cashew-genui`. Renaming it in `wrangler.jsonc` deploys a new
   Worker, so the custom domain and the Anthropic secret have to move to it.
