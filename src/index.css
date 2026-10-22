@@ -220,6 +220,45 @@
     }
 }
 
+/* An answer's card placeholder holds its place until a real card has drawn,
+   then gives way in the same frame, so the space never empties while the
+   card's data is still arriving (see `AnswerTurn`). */
+[data-answer-cards]:has([data-slot="card"]) + [data-card-skeleton] {
+    display: none;
+}
+
+/* An answer's cards as they arrive (`AnswerLayout` in registry.tsx), on the
+   one rise. The first takes over its placeholder, so its surface stays put
+   and only what's inside rises in, rather than the whole card blinking out
+   and back. The rest rise in below it, 50ms apart. */
+[data-answer-layout][data-arriving] > :first-child:is([data-slot="card"]) > *,
+[data-answer-layout][data-arriving] > :first-child:not([data-slot="card"]) [data-slot="card"] > *,
+[data-answer-layout][data-arriving] > :not(:first-child) {
+    animation: answer-rise 200ms cubic-bezier(0.23, 1, 0.32, 1) backwards;
+}
+[data-answer-layout][data-arriving] > :nth-child(2) {
+    animation-delay: 50ms;
+}
+[data-answer-layout][data-arriving] > :nth-child(3) {
+    animation-delay: 100ms;
+}
+[data-answer-layout][data-arriving] > :nth-child(n + 4) {
+    animation-delay: 150ms;
+}
+@keyframes answer-rise {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    @keyframes answer-rise {
+        from {
+            opacity: 0;
+        }
+    }
+}
+
 /* When Jev rearranges the dashboard, its cards glide to their new places
    (see `moveCards` in App.tsx). Only the cards and the "Rearranged by Jev"
    line above them take part, so the rest of the page stays live. They're

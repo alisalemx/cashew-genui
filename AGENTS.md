@@ -59,17 +59,36 @@ Ali Salem.
   Replies stream in word by word (`text-delta` events). json-render's parser
   only hands over whole lines, so `streamProse` in `worker/claude.ts` passes
   prose straight through and still sends anything that could be card data to
-  the parser whole. While an answer is on its way, the chat shows skeletons
+  the parser whole. Claude writes a reply in a fraction of a second, so the
+  chat shows it a word at a time at a calm 15 words a second, each word
+  fading in over 300ms, speeding up so it never trails what has arrived by
+  more than two seconds (`usePacedReply` in
+  `src/components/agent/turn-view.tsx`). While it's shown, its lines wrap
+  plainly, since `text-pretty` would move words already on screen as new
+  ones arrive. Claude's own cards wait under their placeholder until the
+  answer is in, the reply is shown in full, and 300ms more while its last
+  words settle (`BEAT`). They're drawn once, from the finished answer: drawn
+  while their data streamed in, a card could render before its numbers
+  arrived, and json-render's error guard then hid it for good.
+  While an answer is on its way, the chat shows skeletons
   in the shapes of Cashew's real cards (`src/genui/skeleton.tsx`): the
-  reply's lines until its first words arrive, and a card below. The reply's
+  reply's lines until its first words show, and a card below, which holds
+  its place until a real card has drawn (`[data-card-skeleton]` in
+  `src/index.css`), so the space never empties. The reply's
   placeholder is two lines for Jev's cards and three for Claude's own answer.
   It stays from the moment Jev's cards land until Claude starts writing, and
-  the reply keeps that height while it's written, so the cards land where the
-  skeleton was and only move down as the reply grows. When no reply follows,
+  the reply keeps that height while it's shown, so the cards land where the
+  skeleton was and only move down as the reply grows, gliding a line at a
+  time (`useGlideBelow`). When no reply follows,
   past a limit or without a key, the cards move up once when the answer ends.
-  Jev's cards land within a second, so they get a general card. Claude's take the shape of
-  the most specific data it asked for (`shapeForTools`), and a calculation
-  over transactions gets a figure with rows, like the card Claude builds.
+  Jev's cards land whole within a second, with no hint of their shape before,
+  so they get a short card (`stat`) that the real one grows from. Claude's
+  take the shape of the most specific data it asked for (`shapeForTools`),
+  and a calculation over transactions gets a figure with rows, like the card
+  Claude builds. The chat scroller (`@shadcn/react`) is patched
+  (`patches/`, applied by `patch-package` on install) to keep the question
+  in place in the same frame the answer resizes. Unpatched, it caught up a
+  frame late, and a shorter card made the whole answer jump for a frame.
 - **How this answer was made:** a closed panel above each answer tells the
   story step by step, with Jev and Claude chips, in plain design system
   language: the components Claude composed or picked, why Jev passed a
@@ -135,7 +154,12 @@ Ali Salem.
   Jev adds rises in once its neighbours have mostly moved, and a card Jev
   drops fades out quickly (the `:only-child` rules in `src/index.css`). The
   "Rearranged by Jev" line takes part too (`dashboard-note`), so it rises in
-  and fades out by the same rules. The
+  and fades out by the same rules. In the chat, an answer's first card takes
+  over its placeholder: its surface stays put and only its contents rise in,
+  so the card never blinks out and back. Any more cards rise in below it,
+  50ms apart (`[data-answer-layout]` in `src/index.css`). Whatever sits below
+  a reply glides down 250ms on the glide's curve as the reply grows a line,
+  rather than jumping. The
   home screen plays one intro per visit (`useIntro` in `src/genui/parts.tsx`):
   net worth rises first, then the dashboard cards 50ms apart, and their big
   figures count up from zero over 800ms, holding their final width so nothing
@@ -148,7 +172,7 @@ Ali Salem.
   phone's full-width Ask Cashew bar sets 0.98. Reduced motion skips the
   movement and shows the real values at once: the rise becomes a fade, the
   dashboard's cards crossfade in place, and rows and figures jump straight to
-  where they end up. Left out on purpose: fading streamed words, a check drawing in on the
+  where they end up. Left out on purpose: a check drawing in on the
   Sent card, a sliding pill on the About tabs, a hover lift on dashboard
   cards, the transfer card animating its height, and a crossfade from Send to
   Stop.
