@@ -1,0 +1,9 @@
+# Headers on every static asset (Cloudflare Workers Assets reads this file).
+# Nothing on the page may be framed, run a script from elsewhere, or talk to
+# another origin. Inline styles stay allowed: React and Recharts set them on
+# elements, and the chart colours come in a style tag.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

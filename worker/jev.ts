@@ -22,13 +22,23 @@ function cloudflareEvaluator(ai: Ai): Experimental_CompositionEvaluator {
   return async ({ state, questions, signal }) => {
     signal.throwIfAborted()
     const run = ai.run.bind(ai) as unknown as (model: string, input: unknown, options: unknown) => Promise<JevResponse>
-    const response = await Promise.race([
-      run(JEV_MODEL, { state, questions }, { gateway: { id: "default" } }),
-      new Promise<never>((_, reject) => {
-        const timer = setTimeout(() => reject(new Error("Jev took too long to answer")), 8000)
-        signal.addEventListener("abort", () => (clearTimeout(timer), reject(signal.reason)), { once: true })
-      }),
-    ])
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let onAbort = () => {}
+    let response: JevResponse
+    try {
+      response = await Promise.race([
+        run(JEV_MODEL, { state, questions }, { gateway: { id: "default" } }),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("Jev took too long to answer")), 8000)
+          onAbort = () => reject(signal.reason)
+          signal.addEventListener("abort", onAbort, { once: true })
+        }),
+      ])
+    } finally {
+      // One signal serves every call in a request, so each call cleans up after itself.
+      clearTimeout(timer)
+      signal.removeEventListener("abort", onAbort)
+    }
     // The binding wraps Jev's reply as { state, result }, unlike the REST examples.
     if (response.state && response.state !== "Completed") throw new Error(`Jev returned ${response.state}`)
     const reply = response.result ?? response
@@ -119,12 +129,13 @@ function picksFrom(spec: Spec | null, steps: Experimental_CompositionStep[], can
   })
 }
 
-/** Cashew, not Jev, reads an amount like "$40" out of the request. */
+/** Cashew, not Jev, reads an amount like "$40", "$1,500", or "40 dollars" out of the request. */
 export function amountFrom(prompt: string): number | null {
-  const m = prompt.match(/\$\s?(\d{1,5}(?:[.,]\d{1,2})?)|(\d{1,5}(?:\.\d{1,2})?)\s?(?:dollars|bucks|cad)\b/i)
-  const raw = m?.[1] ?? m?.[2]
-  if (!raw) return null
-  const n = Number(raw.replace(",", "."))
+  const figure = "(\\d{1,3}(?:,\\d{3})+|\\d{1,6})(\\.\\d{1,2})?"
+  const m = prompt.match(new RegExp(`\\$\\s?${figure}|${figure}\\s?(?:dollars|bucks|cad)\\b`, "i"))
+  if (!m) return null
+  const [whole, cents] = m[1] ? [m[1], m[2]] : [m[3], m[4]]
+  const n = Number(whole.replace(/,/g, "") + (cents ?? ""))
   return Number.isFinite(n) && n > 0 ? n : null
 }
 
@@ -233,8 +244,9 @@ export async function editDashboard(evaluate: Experimental_CompositionEvaluator,
 
 // The browser already holds the bank's state, so specs travel without it.
 function stripState(spec: Spec): Spec {
-  const { state: _state, ...rest } = spec
-  return rest as Spec
+  const rest = { ...spec }
+  delete rest.state
+  return rest
 }
 
 function withAmount(spec: Spec, prompt: string): Spec {

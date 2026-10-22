@@ -1,5 +1,5 @@
 import { ActionProvider, defineRegistry, Renderer, StateProvider, VisibilityProvider, type ComponentRenderer } from "@json-render/react"
-import { createStateStore, type Spec, type StateStore } from "@json-render/core"
+import { createStateStore, type Spec } from "@json-render/core"
 import { Children, createContext, isValidElement, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react"
 import { cn } from "cn"
 import { useBank } from "@/lib/bank"
@@ -119,8 +119,7 @@ export function CashewSpec({ spec, shared, loading }: { spec: Spec | null; share
   // Only an answer that's on its way when it first shows rises in. One that's
   // already finished, like the history when the phone sheet reopens, just appears.
   const [arriving] = useState(!!loading)
-  const own = useRef<StateStore | null>(null)
-  own.current ??= createStateStore(spec?.state ?? {})
+  const [own] = useState(() => createStateStore(spec?.state ?? {}))
 
   // Claude streams its data into spec.state a patch at a time, so keep the
   // private store in step with each new snapshot.
@@ -128,12 +127,12 @@ export function CashewSpec({ spec, shared, loading }: { spec: Spec | null; share
     if (shared || !spec?.state) return
     const updates: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(spec.state)) updates[`/${key}`] = value
-    own.current!.update(updates)
+    own.update(updates)
   }, [shared, spec?.state])
 
   if (!spec?.root) return null
   return (
-    <StateProvider store={shared ? bank.store : own.current}>
+    <StateProvider store={shared ? bank.store : own}>
       <VisibilityProvider>
         <ActionProvider>
           <Arriving.Provider value={arriving}>

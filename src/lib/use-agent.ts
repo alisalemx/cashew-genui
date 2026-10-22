@@ -28,6 +28,10 @@ export interface Turn {
   stopped?: boolean
 }
 
+/** The longest message the Worker accepts in the history. */
+const HISTORY_LENGTH = 2000
+
+/** The last few turns, cut to what the Worker accepts so a long reply can't lock later questions out. */
 function historyFrom(turns: Turn[]): AskRequest["history"] {
   return turns
     .filter((t) => t.status === "done" && !t.stopped)
@@ -36,9 +40,10 @@ function historyFrom(turns: Turn[]): AskRequest["history"] {
       { role: "user" as const, text: t.prompt },
       {
         role: "assistant" as const,
-        text:
+        text: (
           t.text.join("\n") ||
-          (t.done?.picks?.length ? `[Showed cards: ${t.done.picks.map((p) => p.description).join("; ")}]` : "[Showed cards]"),
+          (t.done?.picks?.length ? `[Showed cards: ${t.done.picks.map((p) => p.description).join("; ")}]` : "[Showed cards]")
+        ).slice(0, HISTORY_LENGTH),
       },
     ])
 }

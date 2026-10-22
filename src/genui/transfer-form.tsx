@@ -8,7 +8,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/c
 import { Input } from "@/components/ui/input"
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { useBank } from "@/lib/bank"
+import { NOTE_LENGTH, useBank } from "@/lib/bank"
 import { money } from "@/lib/format"
 import { Figure, Mono, rise } from "./parts"
 
@@ -23,7 +23,7 @@ export function TransferForm({ recipientId, amount, note }: { recipientId?: stri
   const [step, setStep] = useState<"edit" | "review" | "sent">("edit")
   const [to, setTo] = useState<string | null>(recipientId ?? null)
   const [value, setValue] = useState(amount ? amount.toFixed(2) : "")
-  const [memo, setMemo] = useState(note ?? "")
+  const [memo, setMemo] = useState((note ?? "").slice(0, NOTE_LENGTH))
   const [touched, setTouched] = useState(false)
   const id = useId()
 
@@ -184,7 +184,7 @@ export function TransferForm({ recipientId, amount, note }: { recipientId?: stri
             </Field>
             <Field>
               <FieldLabel htmlFor={`${id}-note`}>Message (optional)</FieldLabel>
-              <Input id={`${id}-note`} className="pointer-coarse:h-11" maxLength={140} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="What’s it for?" />
+              <Input id={`${id}-note`} className="pointer-coarse:h-11" maxLength={NOTE_LENGTH} value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="What’s it for?" />
             </Field>
             <Button type="submit" className="w-full pointer-coarse:h-11">
               Review

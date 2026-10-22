@@ -153,7 +153,10 @@ Ali Salem.
   cards, the transfer card animating its height, and a crossfade from Send to
   Stop.
 - **Money movement:** the AI can only open the transfer form. Review and Confirm
-  live in `src/genui/transfer-form.tsx`, and transfers are demo-only.
+  live in `src/genui/transfer-form.tsx`, and transfers are demo-only. The
+  amount Jev's form opens with comes from `amountFrom` in `worker/jev.ts`,
+  which reads "$1,500" with the thousands comma, so the form never opens
+  with $1.50.
 - **Cost guard:** `/api/ask` only takes requests from Cashew's own page
   (`fromCashew` in `worker/index.ts`): a JSON content type and, when the
   browser sends one, Cashew's origin. Otherwise any site could spend
@@ -175,8 +178,22 @@ Ali Salem.
   question costs fewer Jev calls. Dashboard element ids are capped at 64
   characters, because they travel to Jev on every edit step. Claude's
   system prompt, guide included, is prompt-cached, so only the conversation
-  and tool results cost full price. Keep a monthly spend limit on the
-  Anthropic key, and leave Cloudflare auto top-up off.
+  and tool results cost full price. When the budget store can't be
+  reached, Claude's answers pause and Jev's cards carry on. Bodies over
+  64 KB are refused before they're read in full (`readJson`). Keep a
+  monthly spend limit on the Anthropic key, and leave Cloudflare auto
+  top-up off.
+- **Browser locks:** the Worker refuses a transfer note over 140 characters
+  and a history message over 2,000, and once a bad value is in the
+  browser's state every later question fails. So the client cuts both
+  first (`NOTE_LENGTH` in `src/lib/bank.tsx`, `historyFrom` in
+  `src/lib/use-agent.ts`).
+- **Headers:** `public/_headers` sets a content security policy on every
+  asset: scripts, styles, fonts, and requests only from Cashew's origin,
+  no framing, inline styles allowed because React and Recharts set them.
+  Workers Assets reads the file, so the Vite dev server doesn't apply it.
+  Check it with `npx wrangler dev --config dist/cashew_genui/wrangler.json`
+  after a build.
 - **Patch guard:** json-render's path writers follow `__proto__` like any
   other key, so a patch in Claude's output could reach `Object.prototype`,
   which every later request in the Worker shares. Found in the October 2026
@@ -221,7 +238,8 @@ Ali Salem.
   because the AI binding always calls Cloudflare, even locally. Put the
   Anthropic key in `.dev.vars` as `ANTHROPIC_API_KEY=...` (git-ignored). Without
   it, Claude answers are switched off. `JEV_OFFLINE=1` in `.dev.vars` swaps Jev
-  for a keyword stand-in.
+  for a keyword stand-in. A build copies `.dev.vars` into
+  `dist/cashew_genui/`, so never archive or upload `dist` as a whole.
 - Run one dev server at a time, and reuse it if it's already up. Servers in
   this folder share Vite's dependency cache (`node_modules/.vite`), so a second
   one rebuilds it under the first and the page hangs while loading. If that

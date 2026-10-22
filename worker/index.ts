@@ -43,6 +43,26 @@ const AskSchema = z.object({
 const json = (data: unknown, status = 200) =>
   new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } })
 
+/** The most a request may carry: a dozen long messages and a dashboard come to a fraction of this. */
+const BODY_LIMIT = 64_000
+
+/** The body as JSON, or null when it's over the limit or isn't JSON. Stops reading at the limit rather than after. */
+async function readJson(request: Request): Promise<unknown> {
+  if (Number(request.headers.get("content-length") ?? 0) > BODY_LIMIT || !request.body) return null
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for await (const chunk of request.body) {
+    size += chunk.byteLength
+    if (size > BODY_LIMIT) return null
+    chunks.push(chunk)
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(new Uint8Array(await new Blob(chunks).arrayBuffer())))
+  } catch {
+    return null
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
@@ -58,10 +78,12 @@ async function allowToday(env: Env, kind: Kind, household: string): Promise<Spen
   try {
     return await env.BUDGET.getByName("cashew").spend(kind, await hashOf(household))
   } catch (err) {
+    // Without the count, Claude's answers pause (Jev's cards still answer),
+    // while Jev's cheaper calls carry on with only the per-minute limit.
     // The Anthropic key's monthly spend limit, and the AI Gateway credit
     // balance, are the hard stops behind this one.
     console.error("Couldn't check the daily budget", err)
-    return "ok"
+    return kind === "claude" ? "everyone" : "ok"
   }
 }
 
@@ -110,7 +132,7 @@ async function ask(request: Request, env: Env) {
     return json({ error: "Cashew has answered all it can for today. Come back tomorrow." }, 429)
   }
 
-  const parsed = AskSchema.safeParse(await request.json().catch(() => null))
+  const parsed = AskSchema.safeParse(await readJson(request))
   if (!parsed.success) return json({ error: "Cashew couldn’t read that request." }, 400)
   const body = parsed.data as AskRequest
   if (Object.keys(body.dashboard.elements).length > 40 || !catalog.validate(body.dashboard).success) {
