@@ -42,9 +42,17 @@ export const { registry } = defineRegistry(catalog, {
 /** Set while an answer is arriving, so its cards rise in as they land. */
 const Arriving = createContext(false)
 
+/**
+ * An answer's cards. As they arrive, the first takes over its placeholder and
+ * the rest rise in below it, 50ms apart (`[data-answer-layout]` in index.css).
+ */
 function AnswerLayout({ gap, children }: { gap?: string | null; children: ReactNode }) {
   const arriving = useContext(Arriving)
-  return <div className={cn("flex flex-col [&>*]:h-auto [&>*]:shrink-0", gap === "sm" ? "gap-2" : "gap-3", arriving && rise.children)}>{children}</div>
+  return (
+    <div data-answer-layout data-arriving={arriving || undefined} className={cn("flex flex-col [&>*]:h-auto [&>*]:shrink-0", gap === "sm" ? "gap-2" : "gap-3")}>
+      {children}
+    </div>
+  )
 }
 
 /**
@@ -114,11 +122,13 @@ const fallback: ComponentRenderer = ({ element }) => (
  * Draws a spec. Jev's specs and the dashboard bind to the shared bank store;
  * Claude's carry their own data in spec.state, so they get a private store.
  */
-export function CashewSpec({ spec, shared, loading }: { spec: Spec | null; shared: boolean; loading?: boolean }) {
+export function CashewSpec({ spec, shared, loading, arrives }: { spec: Spec | null; shared: boolean; loading?: boolean; arrives?: boolean }) {
   const bank = useBank()
   // Only an answer that's on its way when it first shows rises in. One that's
-  // already finished, like the history when the phone sheet reopens, just appears.
-  const [arriving] = useState(!!loading)
+  // already finished, like the history when the phone sheet reopens, just
+  // appears. Claude's cards are drawn once the answer is in, so the chat says
+  // whether they're arriving.
+  const [arriving] = useState(arrives ?? !!loading)
   const [own] = useState(() => createStateStore(spec?.state ?? {}))
 
   // Claude streams its data into spec.state a patch at a time, so keep the

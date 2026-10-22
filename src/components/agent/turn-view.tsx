@@ -1,6 +1,6 @@
 import { Check, ChevronRight, CircleAlert, Component, X } from "lucide-react"
 import { cn } from "cn"
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react"
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Bubble, BubbleContent } from "@/components/ui/bubble"
 import {
   Collapsible,
@@ -48,9 +48,24 @@ export function UserTurn({ turn }: { turn: Turn }) {
 export function AnswerTurn({ turn }: { turn: Turn }) {
   const working = isWorking(turn)
   const [arriving] = useState(working)
+  const paced = arriving && !turn.stopped
+  const reply = usePacedReply(turn.text, paced, working)
+  // The answer still settling: on its way, or its reply still being shown.
+  const settling = working || reply.revealing
+  // Claude's cards wait under their placeholder until the answer is in and
+  // the reply is shown in full, then a beat more while its last words settle,
+  // so the reply reads first, never pushes a card down as it grows, and the
+  // cards land whole and still.
+  const lingering = useLinger(settling, BEAT)
+  const held = !turn.shared && lingering
   // How many lines hold the reply's place: two for the sentence or two under
   // Jev's cards, three for Claude's own answer.
-  const lines = turn.status === "writing" ? 3 : 2
+  const lines = turn.status === "writing" || !turn.shared ? 3 : 2
+  const route = turn.route?.route
+  const cardComing =
+    (working || (held && !!turn.spec?.root)) &&
+    (turn.status === "writing" || (route !== "edit_dashboard" && route !== "off_topic"))
+  const { replyRef, belowRef } = useGlideBelow(arriving && settling)
   return (
     <Message
       align="start"
@@ -63,71 +78,183 @@ export function AnswerTurn({ turn }: { turn: Turn }) {
         <HowItWasMade turn={turn} />
         {/* The reply always leads. Lines hold its place from the start, through
             the moment Jev's cards land before Claude starts writing, and the
-            reply keeps that height while it's written, so the cards below
+            reply keeps that height while it's shown, so the cards below
             don't hop as its first words arrive. */}
-        <AnswerText lines={turn.text} minLines={working ? lines : 0} />
-        {working && turn.spec && !turn.text.length ? (
-          <TextSkeleton lines={lines} />
-        ) : null}
-        <CashewSpec spec={turn.spec} shared={turn.shared} loading={working} />
-        {working && !turn.spec ? (
-          <AnswerSkeleton turn={turn} lines={lines} />
-        ) : null}
-        {turn.error ? (
-          <p className="flex items-center gap-2 text-sm text-bad">
-            <CircleAlert className="size-4" aria-hidden />
-            {turn.error}
-          </p>
-        ) : null}
-        {turn.stopped ? (
-          <p className="text-sm text-muted-foreground">You stopped this answer.</p>
-        ) : null}
+        <div ref={replyRef} className="empty:hidden">
+          {reply.lines.length ? (
+            <AnswerText lines={reply.lines} fade={paced} minLines={settling ? lines : 0} />
+          ) : settling ? (
+            <TextSkeleton lines={lines} />
+          ) : null}
+        </div>
+        <div ref={belowRef} className="flex flex-col gap-3 empty:hidden">
+          {/* Claude's cards are drawn once, from the finished answer. Drawn
+              while their data streams in, a card could render before its
+              numbers arrive and fail for good. */}
+          {turn.spec?.root && !held ? (
+            <div data-answer-cards className="contents">
+              <CashewSpec spec={turn.spec} shared={turn.shared} loading={working} arrives={arriving} />
+            </div>
+          ) : null}
+          {/* Holds the card's place until a real card has drawn, then gives
+              way in the same frame (see `[data-card-skeleton]` in index.css).
+              Jev's cards land whole within a second, so theirs is a short
+              general card the real one grows from. Claude's takes the shape
+              of the data it asked for. */}
+          {cardComing ? (
+            <div data-card-skeleton>
+              <CardSkeleton shape={turn.shared ? "stat" : shapeForTools(turn.tools)} />
+            </div>
+          ) : null}
+          {turn.error ? (
+            <p className="flex items-center gap-2 text-sm text-bad">
+              <CircleAlert className="size-4" aria-hidden />
+              {turn.error}
+            </p>
+          ) : null}
+          {turn.stopped ? (
+            <p className="text-sm text-muted-foreground">You stopped this answer.</p>
+          ) : null}
+        </div>
       </MessageContent>
     </Message>
   )
 }
 
+/** The beat between the reply's last word and Claude's cards, in ms: as long as a word takes to fade in. */
+const BEAT = 300
+
+/** True while `on` is, and for `ms` after it turns off. */
+function useLinger(on: boolean, ms: number) {
+  const [lingering, setLingering] = useState(on)
+  if (on && !lingering) setLingering(true)
+  useEffect(() => {
+    if (on) return
+    const timer = setTimeout(() => setLingering(false), ms)
+    return () => clearTimeout(timer)
+  }, [on, ms])
+  return on || lingering
+}
+
+/**
+ * Glides what sits below the reply, like its cards or their placeholder, when
+ * the reply grows a line or settles to its height, instead of letting it jump.
+ * Each glide adds to any still running, so lines that wrap close together
+ * carry on smoothly. Reduced motion lets it move straight there.
+ */
+function useGlideBelow(live: boolean) {
+  const replyRef = useRef<HTMLDivElement>(null)
+  const belowRef = useRef<HTMLDivElement>(null)
+  const height = useRef<number | null>(null)
+  // The render that ends the settling still glides, as the reply drops the
+  // lines it was holding.
+  const wasLive = useRef(live)
+  useLayoutEffect(() => {
+    const before = height.current
+    const after = replyRef.current?.offsetHeight ?? 0
+    const glides = live || wasLive.current
+    height.current = after
+    wasLive.current = live
+    if (!glides || before === null || before === after) return
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
+    belowRef.current?.animate(
+      [{ transform: `translateY(${before - after}px)` }, { transform: "none" }],
+      { duration: 250, easing: "cubic-bezier(0.645, 0.045, 0.355, 1)", composite: "add" }
+    )
+  })
+  return { replyRef, belowRef }
+}
+
 /** At least as tall as the lines that held its place, while it's written. */
 const MIN_LINES: Record<number, string> = { 2: "min-h-[2lh]", 3: "min-h-[3lh]" }
 
+/**
+ * The reply's paragraphs. While it's shown live, each word fades in as it
+ * lands, and lines wrap plainly, since balancing them would move words
+ * already on screen to the next line as new ones arrive.
+ */
 function AnswerText({
   lines,
+  fade,
   minLines,
 }: {
-  lines: string[]
+  lines: string[][]
+  fade: boolean
   minLines: number
 }) {
-  if (!lines.length) return null
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 text-[0.95rem] leading-relaxed text-pretty",
+        "flex flex-col gap-2 text-[0.95rem] leading-relaxed",
+        fade ? "text-wrap" : "text-pretty",
         MIN_LINES[minLines]
       )}
     >
-      {lines.map((line, i) => (
-        <p key={i}>{line}</p>
+      {lines.map((words, i) => (
+        <p key={i}>
+          {fade
+            ? words.map((word, j) => (
+                <span key={j} className="animate-in fade-in-0 duration-300">
+                  {word}
+                </span>
+              ))
+            : words.join("")}
+        </p>
       ))}
     </div>
   )
 }
 
+/** How many words of the reply show each second: calm enough to follow. */
+const WORDS_PER_SECOND = 15
+
+/** How far the shown reply may trail what has arrived, in ms, before it speeds up to catch up. */
+const MAX_LAG = 2000
+
 /**
- * Where the answer will land, in its own shapes: the reply's lines until its
- * first words arrive, then a card shaped like the one on its way. Jev's cards
- * arrive within a second, so they get a general card. Claude's take the shape
- * of the data it asked for. Dashboard changes and off-topic replies are text
- * only.
+ * The reply, shown a word at a time at a calm, steady pace. Claude writes far
+ * faster than anyone reads, so shown as it arrives, a reply lands all at once.
+ * A long one speeds up so it never trails what has arrived by more than two
+ * seconds. A reply that was already in, like the history, or one that was
+ * stopped, shows in full.
  */
-function AnswerSkeleton({ turn, lines }: { turn: Turn; lines: number }) {
-  const route = turn.route?.route
-  const card = turn.status === "writing" || (route !== "edit_dashboard" && route !== "off_topic")
-  return (
-    <div className="flex flex-col gap-3">
-      {turn.text.length ? null : <TextSkeleton lines={lines} />}
-      {card ? <CardSkeleton shape={turn.status === "writing" ? shapeForTools(turn.tools) : "card"} /> : null}
-    </div>
+function usePacedReply(text: string[], paced: boolean, streaming: boolean) {
+  const words = useMemo(
+    () => text.map((line) => line.match(/\S+\s*/g) ?? []),
+    [text]
   )
+  const last = words.at(-1)?.at(-1)
+  // A word still being written waits until it's whole.
+  const total =
+    words.reduce((n, line) => n + line.length, 0) -
+    (streaming && last && !/\s$/.test(last) ? 1 : 0)
+  const [count, setCount] = useState(paced ? 0 : total)
+  const progress = useRef(count)
+
+  useEffect(() => {
+    if (!paced || progress.current >= total) return
+    let frame = 0
+    let previous = performance.now()
+    const tick = (now: number) => {
+      const rate = Math.max(WORDS_PER_SECOND / 1000, (total - progress.current) / MAX_LAG)
+      progress.current = Math.min(total, progress.current + (now - previous) * rate)
+      previous = now
+      setCount(Math.floor(progress.current))
+      if (progress.current < total) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [paced, total])
+
+  const shown = paced ? Math.min(count, total) : Infinity
+  const lines: string[][] = []
+  let left = shown
+  for (const line of words) {
+    if (left <= 0) break
+    lines.push(line.slice(0, left))
+    left -= line.length
+  }
+  return { lines, revealing: paced && count < total }
 }
 
 /** A card in the answer: a design system component, or a new card Claude composed from parts. */
