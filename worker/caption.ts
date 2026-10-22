@@ -1,9 +1,9 @@
 import type { Spec } from "@json-render/core"
-import { createAnthropic } from "@ai-sdk/anthropic"
 import { streamText } from "ai"
 import { isoDate, today } from "../src/shared/data"
-import { CLAUDE_MODEL, type AskEvent, type JevPick, type SessionTransfer } from "../src/shared/protocol"
+import { type AskEvent, type JevPick, type SessionTransfer } from "../src/shared/protocol"
 import { bankStateWith } from "../src/shared/state"
+import { claudeModel } from "./claude"
 
 // Jev picks the cards, and Claude writes the sentence or two that goes under
 // them, so every answer gets a written reply. It works only from the data the
@@ -86,11 +86,10 @@ export async function* captionCards(
   signal: AbortSignal,
 ): AsyncGenerator<AskEvent> {
   const started = performance.now()
-  const anthropic = createAnthropic({ apiKey })
   yield { type: "caption", phase: "start" }
 
   const result = streamText({
-    model: anthropic(CLAUDE_MODEL),
+    model: claudeModel(apiKey),
     system: systemPrompt(),
     prompt: `Jordan asked: ${prompt}\n\nThe cards on screen, top to bottom:\n${JSON.stringify(cardsFor(spec, picks, transfers))}`,
     maxOutputTokens: 300,

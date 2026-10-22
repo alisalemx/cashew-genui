@@ -4,7 +4,8 @@ import { catalog } from "../src/shared/catalog"
 import { CONTACTS } from "../src/shared/data"
 import { JEV_MODEL, type AskEvent, type AskRequest } from "../src/shared/protocol"
 import { captionCards } from "./caption"
-import { Budget, hashOf, visitorOf, type Spend } from "./budget"
+import { Budget, type Kind, type Spend } from "./budget"
+import { hashOf, householdOf, visitorOf } from "./visitor"
 import { askClaude } from "./claude"
 import { composeAnswer, editDashboard, makeEvaluator, routeRequest } from "./jev"
 
@@ -51,17 +52,23 @@ export default {
   },
 } satisfies ExportedHandler<Env>
 
-/** Whether this visitor can have one more Claude call, or which limit stops it. */
-async function allowClaude(env: Env, visitor: string): Promise<Spend | "minute"> {
-  if (env.CLAUDE_LIMITER && !(await env.CLAUDE_LIMITER.limit({ key: visitor })).success) return "minute"
+/** Whether this household can have one more call of this kind today, or which limit stops it. */
+async function allowToday(env: Env, kind: Kind, household: string): Promise<Spend> {
   if (!env.BUDGET) return "ok"
   try {
-    return await env.BUDGET.getByName("cashew").spend(await hashOf(visitor))
+    return await env.BUDGET.getByName("cashew").spend(kind, await hashOf(household))
   } catch (err) {
-    // The Anthropic key's monthly spend limit is the hard stop behind this one.
+    // The Anthropic key's monthly spend limit, and the AI Gateway credit
+    // balance, are the hard stops behind this one.
     console.error("Couldn't check the daily budget", err)
     return "ok"
   }
+}
+
+/** Whether this visitor can have one more Claude call, or which limit stops it. */
+async function allowClaude(env: Env, household: string): Promise<Spend | "minute"> {
+  if (env.CLAUDE_LIMITER && !(await env.CLAUDE_LIMITER.limit({ key: household })).success) return "minute"
+  return allowToday(env, "claude", household)
 }
 
 const LIMITED = {
@@ -79,10 +86,28 @@ const LIMITED = {
   },
 }
 
+/**
+ * Whether the request came from Cashew's own page. Another site can't send a
+ * JSON body without a preflight, which the Worker never answers, and browsers
+ * always say which page a request came from. Without this, any site could
+ * spend Cashew's limits from its own visitors' browsers.
+ */
+function fromCashew(request: Request) {
+  const type = request.headers.get("content-type")?.toLowerCase() ?? ""
+  const origin = request.headers.get("origin")
+  return type.startsWith("application/json") && (!origin || origin === new URL(request.url).origin)
+}
+
 async function ask(request: Request, env: Env) {
-  const visitor = visitorOf(request.headers.get("cf-connecting-ip") ?? "local")
+  if (!fromCashew(request)) return json({ error: "Cashew couldn’t read that request." }, 403)
+  const ip = request.headers.get("cf-connecting-ip") ?? "local"
+  const visitor = visitorOf(ip)
+  const household = householdOf(ip)
   if (env.ASK_LIMITER && !(await env.ASK_LIMITER.limit({ key: visitor })).success) {
     return json({ error: "That’s a lot of questions at once. Try again in a minute." }, 429)
+  }
+  if ((await allowToday(env, "jev", household)) !== "ok") {
+    return json({ error: "Cashew has answered all it can for today. Come back tomorrow." }, 429)
   }
 
   const parsed = AskSchema.safeParse(await request.json().catch(() => null))
@@ -104,8 +129,10 @@ async function ask(request: Request, env: Env) {
     const previous = [...body.history].reverse().find((m) => m.role === "user")?.text ?? null
 
     // Triage and composition run side by side, so a request Jev can answer
-    // with cards doesn't wait on the routing decision first.
-    const composing = composeAnswer(evaluate, body.prompt, signal)
+    // with cards doesn't wait on the routing decision first. Composition
+    // stops as soon as the route says the cards aren't needed.
+    const composeStop = new AbortController()
+    const composing = composeAnswer(evaluate, body.prompt, AbortSignal.any([signal, composeStop.signal]))
     composing.catch(() => {})
 
     // If Jev itself is down or out of credit, Claude can still answer.
@@ -115,6 +142,7 @@ async function ask(request: Request, env: Env) {
     })
     if (route) await send({ type: "route", ...route, offline })
     else await send({ type: "handoff", reason: "Couldn't be reached" })
+    if (route && route.route !== "show") composeStop.abort()
 
     if (route?.route === "off_topic") {
       await send({ type: "text", text: "I can help with your Cashew accounts, spending, bills, investments, and e-Transfers." })
@@ -143,7 +171,7 @@ async function ask(request: Request, env: Env) {
           await send({ type: "picks", picks, candidates: result.candidates })
           // The cards are on screen, so Claude's reply under them never holds them up.
           // Past a limit, the cards answer on their own.
-          if (env.ANTHROPIC_API_KEY && (await allowClaude(env, visitor)) === "ok") {
+          if (env.ANTHROPIC_API_KEY && (await allowClaude(env, household)) === "ok") {
             try {
               for await (const e of captionCards(env.ANTHROPIC_API_KEY, body.prompt, result.spec, picks, body.transfers, signal)) await send(e)
             } catch (err) {
@@ -177,7 +205,7 @@ async function ask(request: Request, env: Env) {
       await send({ type: "done", by: "cashew", ms: Math.round(performance.now() - started), note: "Claude not configured" })
       return
     }
-    const allowed = await allowClaude(env, visitor)
+    const allowed = await allowClaude(env, household)
     if (allowed !== "ok") {
       await send({ type: "text", text: LIMITED[allowed].text })
       await send({ type: "done", by: "cashew", ms: Math.round(performance.now() - started), note: LIMITED[allowed].note })

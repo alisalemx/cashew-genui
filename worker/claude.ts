@@ -32,10 +32,19 @@ import {
 } from "../src/shared/data"
 import { CLAUDE_MODEL, type AskEvent, type AskRequest, type SessionTransfer } from "../src/shared/protocol"
 import { allocation } from "../src/shared/data"
+import { isSafePatch } from "./patch"
 
 // Claude takes the requests Jev can't: anything that needs a written answer,
 // reasoning, or a view nobody prepared. It reads the same mock bank through
 // tools and builds its answer from the same catalogue.
+
+/**
+ * Claude on the Anthropic API. The address is set here, rather than left to
+ * the provider's defaults, so nothing else in the Worker can redirect the key.
+ */
+export function claudeModel(apiKey: string) {
+  return createAnthropic({ apiKey, baseURL: "https://api.anthropic.com/v1" })(CLAUDE_MODEL)
+}
 
 function withTransfers(transfers: SessionTransfer[]) {
   const accounts = getAccounts()
@@ -252,14 +261,13 @@ function streamProse(parser: MixedStreamParser, send: (event: AskEvent) => void)
 
 export async function* askClaude(apiKey: string, body: AskRequest, signal: AbortSignal): AsyncGenerator<AskEvent> {
   const started = performance.now()
-  const anthropic = createAnthropic({ apiKey })
   const messages: ModelMessage[] = [
     ...body.history.map((m) => ({ role: m.role, content: m.text }) as ModelMessage),
     { role: "user", content: body.prompt },
   ]
 
   const result = streamText({
-    model: anthropic(CLAUDE_MODEL),
+    model: claudeModel(apiKey),
     // The instructions and components guide are the same on every call, so
     // they're cached. Only the conversation and tool results cost full price.
     system: { role: "system", content: systemPrompt(), providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } } },
@@ -276,6 +284,7 @@ export async function* askClaude(apiKey: string, body: AskRequest, signal: Abort
   const parser = createMixedStreamParser({
     onText: (text) => queue.push({ type: "text", text }),
     onPatch: (patch) => {
+      if (!isSafePatch(patch)) return
       applySpecStreamPatch(spec as unknown as Record<string, unknown>, patch)
       hasSpec = true
       queue.push({ type: "spec", spec: structuredClone(spec) })

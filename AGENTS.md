@@ -109,7 +109,8 @@ Ali Salem.
   like fonts and charting stay out.
 - **Providers:** Jev runs through Cloudflare AI Gateway on the Worker's `AI`
   binding, paid from the Cloudflare account's AI Gateway credits (no key).
-  Claude runs on an Anthropic API key (`ANTHROPIC_API_KEY`). json-render's
+  Claude runs on an Anthropic API key (`ANTHROPIC_API_KEY`), always through
+  `claudeModel` in `worker/claude.ts`. json-render's
   built-in Jev evaluator only works with one other gateway, so `worker/jev.ts`
   has its own small evaluator.
 - **Motion:** quiet and sparing. Anything that arrives uses one rise (`rise`
@@ -153,16 +154,38 @@ Ali Salem.
   Stop.
 - **Money movement:** the AI can only open the transfer form. Review and Confirm
   live in `src/genui/transfer-form.tsx`, and transfers are demo-only.
-- **Cost guard:** per-visitor rate limits in `wrangler.jsonc` (20 asks a minute,
-  5 Claude calls a minute), and a daily budget in `worker/budget.ts` that
-  caps Claude at 1,500 calls a day across everyone and 30 per visitor,
-  resetting at midnight in Toronto. Both count every Claude call, including
-  the reply under Jev's cards. Past a limit, a written answer becomes a set
-  reply saying so, and Jev's cards show without a reply. An IPv6 visitor is
-  their whole /64 block, since each connection gets millions of addresses.
-  Claude's system prompt, guide included, is prompt-cached, so only the
-  conversation and tool results cost full price. Keep a monthly spend limit
-  on the Anthropic key, and leave Cloudflare auto top-up off.
+- **Cost guard:** `/api/ask` only takes requests from Cashew's own page
+  (`fromCashew` in `worker/index.ts`): a JSON content type and, when the
+  browser sends one, Cashew's origin. Otherwise any site could spend
+  Cashew's limits from its visitors' browsers. Then per-visitor rate limits
+  in `wrangler.jsonc` (20 asks a minute, 5 Claude calls a minute), and daily
+  budgets in `worker/budget.ts` (`LIMITS`) that reset at midnight in
+  Toronto: Claude at 1,500 calls a day across everyone and 30 per visitor,
+  counting every Claude call including the reply under Jev's cards, and
+  Jev at 5,000 asks a day and 200 per visitor, counted per ask since Jev
+  has no cap of its own. Past a Claude limit, a written answer becomes a set
+  reply saying so, and Jev's cards show without a reply. Past the Jev
+  limit, the ask gets a 429. For the per-minute ask limit, an IPv6 visitor
+  is their whole /64 block, since each connection gets millions of
+  addresses. For the daily budgets and the Claude limiter, they're their
+  /48 (`householdOf` in `worker/visitor.ts`), since home and hosting
+  providers hand out blocks that size, and 50 fresh /64s would otherwise
+  spend the whole day's Claude budget. Composition starts alongside
+  routing and is aborted once the route isn't `show`, so an explained
+  question costs fewer Jev calls. Dashboard element ids are capped at 64
+  characters, because they travel to Jev on every edit step. Claude's
+  system prompt, guide included, is prompt-cached, so only the conversation
+  and tool results cost full price. Keep a monthly spend limit on the
+  Anthropic key, and leave Cloudflare auto top-up off.
+- **Patch guard:** json-render's path writers follow `__proto__` like any
+  other key, so a patch in Claude's output could reach `Object.prototype`,
+  which every later request in the Worker shares. Found in the October 2026
+  security audit: a planted patch line redirected every later Claude call,
+  API key included, to another address. `isSafePatch` in `worker/patch.ts`
+  drops any patch that leaves `/root`, `/elements`, and `/state` or names
+  `__proto__`, `constructor`, or `prototype`, and `claudeModel` in
+  `worker/claude.ts` pins the Anthropic address so nothing can redirect
+  the key. Keep both when changing how specs are applied.
 
 ## Where things live
 
