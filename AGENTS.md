@@ -114,8 +114,8 @@ Ali Salem.
   What Jev and Claude are in general lives in the About modal
   (`src/components/about-dialog.tsx`), opened from the cobalt pill in the
   header. It keeps text to a minimum, with no blush block and no sequence
-  diagram. It has a plain title and two tabs. "How it works" comes
-  first and shows only three real questions, set large in blush (a light
+  diagram. It has a plain title and three tabs, in this order: "How it
+  works", "Results", and "Tech stack". "How it works" shows only three real questions, set large in blush (a light
   tint, solid once picked), until one is
   picked. When the tab opens, the questions rise in one after another,
   250ms apart, on the same rise as the answer. Then, 300ms after the click,
@@ -134,7 +134,12 @@ Ali Salem.
   or the catalogue changes. "Tech stack" is a plain list, no cards or dividers, of the five
   core pieces (Jev, Claude, json-render, shadcn/ui, Cloudflare Workers): each
   links to its site and says what it is and what it does here. Trivial items
-  like fonts and charting stay out.
+  like fonts and charting stay out. "Results" leads with three big
+  figures on paper-tone tiles, each with one line, then a muted line on
+  what isn't measured yet and a link to the article that prompted the
+  routing test. Its numbers come from the first day's runs and the
+  November 13, 2026 routing test, so update them when routing is tested
+  again.
 - **Providers:** Jev runs through Cloudflare AI Gateway on the Worker's `AI`
   binding, paid from the Cloudflare account's AI Gateway credits (no key).
   Claude runs on an Anthropic API key (`ANTHROPIC_API_KEY`), always through

@@ -11,8 +11,8 @@ import { CardSkeleton, skeletonBar, type CardShape } from "@/genui/skeleton"
 import { CLAUDE_MODEL, JEV_MODEL } from "@/shared/protocol"
 
 // How a question finds its answer, played back from real /api/ask runs on
-// October 16, 2026, and what the demo is built with. Record the runs again
-// when routing or the catalogue changes.
+// October 16, 2026, what the demo is built with, and what the experiment
+// showed. Record the runs again when routing or the catalogue changes.
 
 export function AboutDialog() {
   const [tab, setTab] = useState("flow")
@@ -39,12 +39,18 @@ export function AboutDialog() {
             <TabsTrigger value="flow" className="px-3">
               How it works
             </TabsTrigger>
+            <TabsTrigger value="results" className="px-3">
+              Results
+            </TabsTrigger>
             <TabsTrigger value="stack" className="px-3">
               Tech stack
             </TabsTrigger>
           </TabsList>
           <TabsContent value="flow">
             <Flow />
+          </TabsContent>
+          <TabsContent value="results">
+            <Results />
           </TabsContent>
           <TabsContent value="stack">
             <Stack />
@@ -419,23 +425,82 @@ function Stack() {
   return (
     <ul aria-label="Tech stack" className="flex flex-col gap-5">
       {STACK.map((s) => (
-        <li key={s.name} className="flex flex-col gap-1">
-          <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-            <a
-              href={s.href}
-              target="_blank"
-              rel="noreferrer"
-              className="group relative hit-area inline-flex items-center gap-1 font-medium underline-offset-4 hover:underline"
-            >
-              {s.name}
-              <ArrowUpRight className="size-3.5 text-muted-foreground transition-colors duration-150 group-hover:text-foreground" aria-hidden />
-              <span className="sr-only"> (opens in a new tab)</span>
-            </a>
-            <span className="font-mono text-[11px] text-muted-foreground">{s.detail}</span>
-          </span>
-          <p className="text-sm leading-relaxed text-pretty text-muted-foreground">{s.about}</p>
-        </li>
+        <Entry key={s.name} {...s} />
       ))}
     </ul>
+  )
+}
+
+// From the first day's runs on October 16, 2026, and the routing test on
+// November 13, 2026. Update the numbers when routing is tested again.
+const RESULTS: { figure: string; line: string }[] = [
+  { figure: "2 of 3", line: "Claude’s first test replies misquoted the spending total, which cards read straight from the account." },
+  { figure: "7 of 8", line: "Jev’s wrong calls came from unclear instructions Cashew gave it." },
+  { figure: "21 of 22", line: "New test questions Jev handled right once those instructions were fixed." },
+]
+
+const ARTICLE = "https://agustinbarrientos.com/writing/senior-eye/interfaces-that-understand-what-we-want"
+
+function Results() {
+  return (
+    <div className="flex flex-col gap-5">
+      <ul aria-label="Results" className="grid gap-3 sm:grid-cols-3">
+        {RESULTS.map((r) => (
+          <li key={r.figure} className="flex flex-col gap-2 rounded-2xl bg-background p-4 sm:p-5">
+            <span className="text-3xl leading-none font-semibold tracking-[-0.03em] tabular-nums">{r.figure}</span>
+            <span className="text-sm leading-snug text-pretty">{r.line}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="flex flex-col gap-2 text-sm leading-relaxed text-pretty text-muted-foreground">
+        <p>How many visitors’ questions Jev answers without Claude isn’t measured yet.</p>
+        <p>
+          The test came from Agustin Barrientos’s article{" "}
+          <a
+            href={ARTICLE}
+            target="_blank"
+            rel="noreferrer"
+            className="relative hit-area text-foreground underline underline-offset-4 transition-colors hover:text-primary"
+          >
+            Building Interfaces That Understand What We Want to Do
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+          .
+        </p>
+      </div>
+    </div>
+  )
+}
+
+/** One line of a plain list: its name (a link when it has one), a mono detail, and a sentence or two. */
+function Entry({ name, detail, about, href }: { name: string; detail: string; about: string; href?: string }) {
+  return (
+    <li className="flex flex-col gap-1">
+      <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="group relative hit-area font-medium underline-offset-4 hover:underline"
+          >
+            {/* The arrow stays with the last word, so a long name that wraps keeps it beside the text. */}
+            {name.slice(0, name.lastIndexOf(" ") + 1)}
+            <span className="whitespace-nowrap">
+              {name.slice(name.lastIndexOf(" ") + 1)}
+              <ArrowUpRight
+                className="ml-1 inline size-3.5 align-[-0.125em] text-muted-foreground transition-colors duration-150 group-hover:text-foreground"
+                aria-hidden
+              />
+            </span>
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+        ) : (
+          <span className="font-medium">{name}</span>
+        )}
+        <span className="font-mono text-[11px] text-muted-foreground">{detail}</span>
+      </span>
+      <p className="text-sm leading-relaxed text-pretty text-muted-foreground">{about}</p>
+    </li>
   )
 }
