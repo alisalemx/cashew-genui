@@ -50,7 +50,16 @@ Ali Salem.
   was checked for contrast in both themes, so recheck when changing one.
 - **How answers are made:** Jev (`typesafe/jev`) triages each request and, for
   most of them, picks and arranges ready-made cards. Claude Haiku (`claude-haiku-5-5`, chosen to keep costs low)
-  takes requests that need a written answer, and any Jev can't cover. Claude
+  takes requests that need a written answer, and any Jev can't cover. Jev's
+  route question (`routeQuestion` in `worker/jev.ts`) names every kind of
+  card and lists the six months they cover, because Jev doesn't know today's
+  date. When Jev picks a card or calls a question off topic with a
+  confidence under half (`SURE_ENOUGH`), Claude takes it instead, since a
+  card that looks right but doesn't answer, or a real question turned away,
+  is worse than a slower answer. Jev's confidence runs well below the
+  option's probability, so set the cutoff from confidences, not
+  probabilities. "How this answer was made" then says no ready-made
+  component was a clear fit. Claude
   uses a finished card when one fits, and otherwise builds a new card from
   blocks (Card, Figure, Row, Meter, List, Text), following the components guide.
   Every answer gets a written reply. For Jev's cards, Claude writes a sentence
@@ -240,7 +249,9 @@ Ali Salem.
   Keep it in step with the catalogue.
 - `src/genui/blocks.tsx`: the blocks Claude composes new cards from.
 - `src/shared/candidates.ts`: Jev's ready-made cards. Descriptions are all Jev
-  sees, so word them to tell similar cards apart.
+  sees, so word them to tell similar cards apart. A new kind of card also
+  needs a mention in Jev's route question in `worker/jev.ts`, or Jev won't
+  send questions its way.
 - `src/shared/data.ts` and `state.ts`: seeded mock bank, anchored to today in Toronto.
   It holds 13 months of history so visitors' own questions land on something
   real: a raise, a tax refund, freelance income, trips to New York (in US

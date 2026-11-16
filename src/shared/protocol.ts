@@ -30,7 +30,8 @@ export interface JevCandidate {
   picked: boolean
 }
 
-export type ClaudeReason = "why" | "calculation" | "plan" | "advice" | "followup" | "other"
+/** Why Jev passed a question to Claude. `unsure` means Jev leaned towards a card or off topic but was less than half sure. */
+export type ClaudeReason = "why" | "calculation" | "plan" | "advice" | "followup" | "other" | "unsure"
 
 export interface JevPick {
   id: string

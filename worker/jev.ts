@@ -8,7 +8,7 @@ import {
 } from "@json-render/core"
 import { catalog } from "../src/shared/catalog"
 import { buildCandidates, buildDashboardCandidates, dashboardDescriptions } from "../src/shared/candidates"
-import { CONTACTS } from "../src/shared/data"
+import { CONTACTS, monthLabel, recentMonths } from "../src/shared/data"
 import { JEV_MODEL, type ClaudeReason, type JevCandidate, type JevPick, type Route } from "../src/shared/protocol"
 import { buildBankState } from "../src/shared/state"
 import { offlineEvaluator } from "./offline-evaluator"
@@ -72,19 +72,36 @@ export function makeEvaluator(ai: Ai | undefined, forceOffline: boolean): { eval
 }
 
 // Jev's first job is triage. It's a single choice question, which is exactly
-// the kind of quick judgement it's built for.
-const ROUTE_QUESTION = {
-  type: "choice" as const,
-  instructions:
-    "Decide how Cashew, a banking app, should handle user_request. Cashew has prepared cards for the person's own balances, transactions, monthly spending, bills, investments, and a form to send an e-Transfer. Cards show data as it is, for the last six months at most. They can't explain why, reason, give advice, or work out anything new, like a yearly total, a percentage, a goal, or whether something is affordable. There are no cards for savings goals, budgets, subscriptions, the credit score, the credit card's details or cash back, TFSA contribution room, pay history or raises, or anything older than six months.",
-  criteria: {
-    show: "A prepared card shows the answer as it is: the person wants to see their balances, transactions, monthly spending, bills, or investments, or to send someone money",
-    edit_dashboard: "The person wants to change their home dashboard: add, remove, move, or reorder its sections",
-    explain:
-      "The answer has to be worked out or written: why something happened, advice, whether they can afford something, progress toward a goal, a what-if, a yearly or custom total, a ranking no card shows (like who they send the most money to), a percentage or share, a comparison no card shows, or a follow-up that depends on the earlier conversation. Also anything about pay and raises, savings goals, budgets, subscriptions, the credit score, card details or cash back, TFSA room, fees, unusual charges, or older history",
-    off_topic: "Not about the person's money or this banking app",
-  },
+// the kind of quick judgement it's built for. It lists the months the cards
+// cover, because Jev doesn't know today's date and, given only a range, still
+// took February for one of them.
+function routeQuestion() {
+  const months = recentMonths(6)
+  const named = (key: string) => `${monthLabel(key, "long")} ${key.slice(0, 4)}`
+  const first = named(months[0])
+  const covered = months.map((m) => monthLabel(m, "long"))
+  const list = `${covered.slice(0, -1).join(", ")}, and ${covered.at(-1)}`
+  return {
+    type: "choice" as const,
+    instructions: `Decide how Cashew, a banking app, should handle user_request. Cashew has prepared cards for the person's own balances, net worth, transactions (all of them, the biggest, or one category like groceries, dining, transport and rides, shopping, or travel), spending by month or by category, this month's spending against last month's, paycheques and other money in, bills, the TFSA's value, holdings, and asset mix, recent e-Transfers, and a form to send one. Cards show data as it is, only for the six months from ${first} to now, ${named(months[5])}: ${list}. Any other month is too old for a card. They can't explain why, reason, give advice, or work out anything new, like a yearly total, an average, a percentage, a goal, or whether something is affordable. There are no cards for savings goals, budgets, subscriptions, the credit score, the credit card's details or cash back, TFSA contribution room, raises, or anything before ${first}.`,
+    criteria: {
+      show: "A prepared card shows the answer as it is: the person wants to see their balances, net worth, transactions, spending by month or category, this month against last, paycheques, bills, or investments, or to send someone money",
+      edit_dashboard: "The person wants to change their home dashboard: add, remove, move, or reorder its sections",
+      explain: `The answer has to be worked out or written: why something happened, advice, whether they can afford something, progress toward a goal, a what-if, a yearly or custom total, an average, a ranking no card shows (like who they send the most money to), a percentage or share, a comparison other than this month against last, or a follow-up that depends on the earlier conversation. Also anything about raises, savings goals, budgets, subscriptions, the credit score, card details or cash back, TFSA room, fees, unusual charges, or anything before ${first}`,
+      off_topic:
+        "Not about the person's money or this banking app. Their own purchases, orders, rides, or charges at any store or service are about their money, so they're never off topic",
+    } satisfies Record<Route, string>,
+  }
 }
+
+// A card Jev doubts can look right and still not answer the question, and a
+// doubtful off-topic call turns a real question away with the set reply.
+// Both are worse than Claude taking a few seconds longer, so either one goes
+// to Claude when Jev's confidence is under half. Its confidence runs lower
+// than the option's probability: "Show my Amazon orders" split 0.39 card to
+// 0.38 off topic, with a confidence of 0.19 either way. The offline stand-in
+// always gives 0.5, so it still shows cards.
+const SURE_ENOUGH = 0.5
 
 // Asked alongside triage, so when Jev passes a question to Claude it can say
 // why. Answered every time, but only used when the route is explain.
@@ -98,20 +115,24 @@ const REASON_QUESTION = {
     advice: "It asks for advice or a recommendation",
     followup: "It builds on previous_request and only makes sense with it",
     other: "None of these",
-  } satisfies Record<ClaudeReason, string>,
+  } satisfies Record<Exclude<ClaudeReason, "unsure">, string>,
 }
 
 export async function routeRequest(evaluate: Experimental_CompositionEvaluator, prompt: string, previous: string | null, signal: AbortSignal) {
   const started = performance.now()
+  const question = routeQuestion()
   const result = await evaluate({
     state: { user_request: prompt, previous_request: previous ?? "none" },
-    questions: { route: ROUTE_QUESTION, reason: REASON_QUESTION },
+    questions: { route: question, reason: REASON_QUESTION },
     signal,
   })
   const answer = result.answers.route
-  const route = (answer && answer.choice in ROUTE_QUESTION.criteria ? answer.choice : "explain") as Route
+  const picked = (answer && answer.choice in question.criteria ? answer.choice : "explain") as Route
+  const unsure = (picked === "show" || picked === "off_topic") && answer?.confidence != null && answer.confidence < SURE_ENOUGH
+  const route: Route = unsure ? "explain" : picked
   const why = result.answers.reason?.choice
-  const reason = route === "explain" ? ((why && why in REASON_QUESTION.criteria ? why : "other") as ClaudeReason) : null
+  const reason: ClaudeReason | null =
+    route !== "explain" ? null : unsure ? "unsure" : why && why in REASON_QUESTION.criteria ? (why as ClaudeReason) : "other"
   return { route, reason, confidence: answer?.confidence ?? null, ms: Math.round(performance.now() - started) }
 }
 

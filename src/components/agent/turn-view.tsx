@@ -342,6 +342,7 @@ const REASONS: Record<ClaudeReason, string> = {
   advice: "it asks for advice",
   followup: "it builds on your earlier question",
   other: "no ready-made component shows it",
+  unsure: "no ready-made component was a clear fit",
 }
 
 /** Why Jev gave up on components after trying them, finishing "Read your question but…". */
